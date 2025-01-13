@@ -11,13 +11,15 @@ def okay_response(msg):
     resp += msg 
     return resp
 
-
-def parse_request(buffer):
-    msg_str = unquote("".join(buffer))
-    doc = """<!DOCTYPE html>
-                <html>
-                <head>
+# why would i not just make it a file? so i can add JAVASCRIPT and be evil <3
+def page_get_response(script=""):
+     return f"""<!DOCTYPE html>
+            <html>
+            <head>
                 <meta charset="utf-8">
+                <script>
+                {script}
+                </script>
                 </head>
                 <body>
                 <h1>hello!</h1>
@@ -29,9 +31,13 @@ def parse_request(buffer):
                 <form action="" method="post">
                     <input type="submit" name="close" value="Close"/>
                 </form>
-                </div>"""
-    
-       
+                </div>
+            </body>
+            </html>
+            """
+
+def parse_request(buffer):
+    msg_str = unquote("".join(buffer))
     if 'color' in msg_str:
         open_p = msg_str.find("color=(")
         close_p = msg_str.find(")",open_p)
@@ -40,15 +46,21 @@ def parse_request(buffer):
             try:
                 display.clear((int(colors[0]), int(colors[1]), int(colors[2])))
             except ValueError:
-                return doc + """
-                            <script>
-                                alert("Please enter in format (R, G, B)")
-                            </script>
-                            </body>
-                            </html>"""
+                return  page_get_response("alert(\"Please enter in format (R, G, B)\")")
+        
     if 'close=Close' in msg_str:
-        return ""
-    return doc + "</body></html>"   
+        return """<!DOCTYPE html>
+            <html>
+                <head>
+                    <meta charset="utf-8">
+                </head>
+                <body>
+                    <h1>Goodbye!</h1>
+                 </body>
+            </html>
+            """
+                
+    return page_get_response()   
 
 def main():
     listen_color = (3, 252, 198)
@@ -56,46 +68,41 @@ def main():
     disconnect_color = (158, 3, 60)
     display.low_light = True
     port = 7434
+    
     if (len(sys.argv) > 1):
         port = int(sys.argv[1])
-
+    
     cur_socket = socket.socket()
     cur_socket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR, 1)
     cur_socket.bind(('', port))
 
+    
     cur_socket.listen()
     display.clear(wait_color)
+    listening = False    
     while (new_conn := cur_socket.accept()):
-        display.clear(listen_color)
+        if not listening:
+            listening = True
+            display.clear(listen_color)
         buffer = []
         new_socket = new_conn[0]
-        segment = new_socket.recv(4096)
-        try:
-            segment = segment.decode("utf-8")
-        finally:
-            segment = segment
+        while (segment := new_socket.recv(4096)): 
+            try:
+                segment = segment.decode("utf-8")
+            finally:
+                segment = segment
             
-        buffer.append(segment)
+            buffer.append(segment)
         
-        if "\r\n\r\n" in segment:
-            resp = parse_request(buffer)
-            if resp == "":
-                resp = """<!DOCTYPE html>
-                            <html>
-                            <head>
-                                <meta charset="utf-8">
-                            </head>
-                            <body>
-                            <h1>Goodbye!</h1>
-                            </body>
-                        </html>""" 
-                new_socket.send(okay_response(resp).encode("utf-8"))
-                new_socket.close()
-                display.clear(disconnect_color)
+            if "\r\n\r\n" in segment:
                 break
-            new_socket.send(okay_response(resp).encode("utf-8"))
-            new_socket.close()
-            
+        resp = parse_request(buffer)
+        new_socket.send(okay_response(resp).encode("utf-8"))
+        new_socket.close()
+        
+        if "Goodbye" in resp:
+            break
+                        
         
     cur_socket.close()
     display.show_message("GOODBYE!", text_colour=[255,255,255])
