@@ -8,33 +8,18 @@ display = SenseHat()
 
 def okay_response(msg):
     resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"
-    resp += msg 
+    resp += str(msg)
+    resp += "\r\n\r\n"
     return resp
 
-# why would i not just make it a file? so i can add JAVASCRIPT and be evil <3
-def page_get_response(script=""):
-     return f"""<!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <script>
-                {script}
-                </script>
-                </head>
-                <body>
-                <h1>hello!</h1>
-                <form action="" method="post">
-                    <input type="text" name="color" value="(0,0,0)"/>
-                    <input type="submit" name="submit" value="Submit"/>
-                </form>
-                <div>
-                <form action="" method="post">
-                    <input type="submit" name="close" value="Close"/>
-                </form>
-                </div>
-            </body>
-            </html>
-            """
+def serve_page(name):
+    try:
+        f = open(name, 'r')
+    except NameError:
+        print("file not found")
+        return False
+    return okay_response(f.read())
+
 
 def parse_request(buffer):
     msg_str = unquote("".join(buffer))
@@ -49,18 +34,9 @@ def parse_request(buffer):
                 return  page_get_response("alert(\"Please enter in format (R, G, B)\")")
         
     if 'close=Close' in msg_str:
-        return """<!DOCTYPE html>
-            <html>
-                <head>
-                    <meta charset="utf-8">
-                </head>
-                <body>
-                    <h1>Goodbye!</h1>
-                 </body>
-            </html>
-            """
+        return (serve_page("index.html"),1)
                 
-    return page_get_response()   
+    return serve_page("form.html")   
 
 def main():
     listen_color = (3, 252, 198)
@@ -97,11 +73,14 @@ def main():
             if "\r\n\r\n" in segment:
                 break
         resp = parse_request(buffer)
-        new_socket.send(okay_response(resp).encode("utf-8"))
+        if len(resp) == 2:
+            new_socket.send(resp[0].encode("utf-8"))
+            new_socket.close()
+            break
+        else:
+            new_socket.send(okay_response(resp).encode("utf-8"))
         new_socket.close()
         
-        if "Goodbye" in resp:
-            break
                         
         
     cur_socket.close()
